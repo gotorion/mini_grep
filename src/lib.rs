@@ -2,17 +2,25 @@
  * @Author: Junhui Li junhui.lee@icloud.com
  * @Date: 2024-07-10 22:10:21
  * @LastEditors: Junhui Li junhui.lee@icloud.com
- * @LastEditTime: 2024-07-10 22:27:05
+ * @LastEditTime: 2024-07-10 22:44:06
  * @FilePath: /mini_grep/src/lib.rs
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
+use std::env;
 use std::error::Error;
 use std::fs;
 
 pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     let contents =
         fs::read_to_string(config.file_path).expect("Should have been able to read the file");
-    for line in search(&config.query, &contents) {
+
+    let results = if config.ignore_case {
+        search_case_insensitive(&config.query, &contents)
+    } else {
+        search(&config.query, &contents)
+    };
+
+    for line in results {
         println!("{line}");
     }
     Ok(())
@@ -21,6 +29,7 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
 pub struct Config {
     pub query: String,
     pub file_path: String,
+    pub ignore_case: bool,
 }
 
 impl Config {
@@ -31,8 +40,13 @@ impl Config {
 
         let query = args[1].clone();
         let file_path = args[2].clone();
+        let ignore_case = env::var("IGNORE_CASE").is_ok();
 
-        Ok(Config { query, file_path })
+        Ok(Config {
+            query,
+            file_path,
+            ignore_case,
+        })
     }
 }
 
@@ -40,6 +54,18 @@ pub fn search<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
     let mut results = Vec::new();
     for line in contents.lines() {
         if line.contains(query) {
+            results.push(line);
+        }
+    }
+    results
+}
+
+pub fn search_case_insensitive<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
+    let query = query.to_lowercase();
+    let mut results = Vec::new();
+
+    for line in contents.lines() {
+        if line.to_lowercase().contains(&query) {
             results.push(line);
         }
     }
@@ -59,5 +85,19 @@ safe, fast, productive.
 Pick threee.";
 
         assert_eq!(vec!["safe, fast, productive."], search(query, contents));
+    }
+    #[test]
+    fn case_intensitive() {
+        let query = "rUst";
+        let contents = "\
+Rust:
+safe, fast, productive.
+Pick threee.
+Trust me.";
+
+        assert_eq!(
+            vec!["Rust:", "Trust me."],
+            search_case_insensitive(query, contents)
+        );
     }
 }
